@@ -77,6 +77,6 @@ There are ten tests. These are the ones worth naming:
 - **Attribution ranks the one shifted column first.**
 - **Scale does not change the normalized Wasserstein distance.**
 
-## Data license
+## License
 
-The UCI Water Treatment Plant dataset in `data/uci_water_treatment/` was created by Manel Poch and is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), [doi:10.24432/C5FS4C](https://doi.org/10.24432/C5FS4C).
+The code is MIT-licensed; see [LICENSE](LICENSE). The UCI Water Treatment Plant dataset in `data/uci_water_treatment/` was created by Manel Poch and is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), [doi:10.24432/C5FS4C](https://doi.org/10.24432/C5FS4C).
