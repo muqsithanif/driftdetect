@@ -52,15 +52,12 @@ class AdversarialValidator:
 
         for k, name in enumerate(feature_names):
             vals = np.concatenate([x_train[:, k], x_test[:, k]])
-            # Compute univariate AUC
-            try:
-                score = float(roc_auc_score(y, vals))
-                if score < 0.5:
-                    score = 1.0 - score
-                if score >= auc_threshold:
-                    trivial.append(name)
-            except Exception:
-                pass
+            finite = np.isfinite(vals)
+            if len(np.unique(y[finite])) < 2:
+                continue
+            score = float(roc_auc_score(y[finite], vals[finite]))
+            if max(score, 1.0 - score) >= auc_threshold:
+                trivial.append(name)
         return trivial
 
     def validate(

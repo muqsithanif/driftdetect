@@ -4,6 +4,7 @@ from typing import List, Tuple, Dict
 import numpy as np
 from sklearn.metrics import roc_auc_score
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
 from core.adversarial import AdversarialValidator
 
@@ -33,12 +34,16 @@ class DriftAttributionEngine:
     ) -> List[CulpritFeature]:
         """Compute permutation importance and consensus culprit scores."""
         n, m = len(x_train), len(x_test)
-        X = np.vstack([x_train, x_test])
-        y = np.concatenate([np.zeros(n), np.ones(m)])
+        X_all = np.vstack([x_train, x_test])
+        y_all = np.concatenate([np.zeros(n), np.ones(m)])
 
-        # Train reference discriminator
+        # Permutation importance is measured on held-out rows. Measured on the
+        # rows the forest was fitted to, it rewards whatever the forest memorised.
+        X_fit, X, y_fit, y = train_test_split(
+            X_all, y_all, test_size=0.30, stratify=y_all, random_state=self.random_state
+        )
         clf = RandomForestClassifier(n_estimators=60, max_depth=5, random_state=self.random_state, n_jobs=-1)
-        clf.fit(X, y)
+        clf.fit(X_fit, y_fit)
         baseline_preds = clf.predict_proba(X)[:, 1]
         baseline_eval_auc = float(roc_auc_score(y, baseline_preds))
 
@@ -60,13 +65,13 @@ class DriftAttributionEngine:
             perm_imp = max(0.0, float(np.mean(auc_drops)))
             perm_scores.append(perm_imp)
 
-            # 2. Univariate AUC
-            vals = X[:, k]
-            try:
-                u_auc = float(roc_auc_score(y, vals))
-                if u_auc < 0.5:
-                    u_auc = 1.0 - u_auc
-            except Exception:
+            # 2. Univariate AUC over all rows, ignoring missing values
+            vals = X_all[:, k]
+            finite = np.isfinite(vals)
+            if len(np.unique(y_all[finite])) == 2:
+                u_auc = float(roc_auc_score(y_all[finite], vals[finite]))
+                u_auc = max(u_auc, 1.0 - u_auc)
+            else:
                 u_auc = 0.5
             univ_scores.append(u_auc)
 
