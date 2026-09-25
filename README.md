@@ -12,6 +12,15 @@ It is tested two ways: on a synthetic table where the drift was injected into kn
 
 ## What it does
 
+```mermaid
+flowchart LR
+    Data["Reference and target tables"] --> Uni["Per-column KS and PSI: FDR first, then effect size"]
+    Data --> Leak["Leakage check: columns that separate the sets alone"]
+    Leak --> Adv["LightGBM adversarial validation: out-of-fold AUC with CI"]
+    Adv --> Attr["Attribution and removal curve"]
+    Adv --> W["Importance weights and effective sample size"]
+```
+
 **Per-column tests.** For each column, the tool runs a two-sample Kolmogorov–Smirnov test and computes the Population Stability Index (PSI) and the Wasserstein-1 distance divided by the reference IQR. A column only gets a severity (LOW, MODERATE or SEVERE) if its shift is statistically significant. That means the smaller of the KS and PSI p-values, doubled for the two tests, has to pass a Benjamini–Hochberg false-discovery-rate step across all columns at q = 0.05.
 
 The PSI p-value comes from its approximate null distribution, PSI ≈ (1/n + 1/m)·χ²(B−1). This is why significance comes first. At 150 rows per side and 10 bins, the 95th percentile of PSI with no drift at all is about 0.23, so the usual "PSI above 0.10 means drift" rule flags columns that have not moved. A test covers exactly this case.
