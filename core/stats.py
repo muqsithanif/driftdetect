@@ -14,6 +14,7 @@ class UnivariateDriftResult:
     wasserstein_norm: float
     psi_score: float
     psi_critical: float
+    p_value: float     # combined KS/PSI p-value, before the FDR step
     is_drifted: bool
     severity: str  # "NONE", "LOW", "MODERATE", "SEVERE"
 
@@ -49,8 +50,8 @@ class UnivariateDriftAnalyzer:
         num_bins: int = 10,
         alpha: float = 0.05,
         eps: float = 1e-4,
-    ) -> Tuple[float, float]:
-        """Compute Population Stability Index (PSI) with sample-size aware chi-square null calibration."""
+    ) -> Tuple[float, float, float]:
+        """PSI, its critical value at this sample size, and its p-value under no drift."""
         n, m = len(x_p), len(x_q)
         # Construct equal-mass bins from reference percentiles
         quantiles = np.linspace(0.0, 1.0, num_bins + 1)
@@ -60,7 +61,7 @@ class UnivariateDriftAnalyzer:
         b_actual = len(bin_edges) - 1
 
         if b_actual < 2:
-            return 0.0, 0.10
+            return 0.0, 0.10, 1.0
 
         bin_edges[0] = -np.inf
         bin_edges[-1] = np.inf
@@ -75,14 +76,23 @@ class UnivariateDriftAnalyzer:
         # PSI = sum (Q - P) * ln(Q / P)
         psi_val = float(np.sum((prop_q - prop_p) * np.log(prop_q / prop_p)))
 
-        # Chi-square calibrated critical value under H0: PSI ~ (1/n + 1/m) * Chi2(B - 1)
+        # Under H0, PSI is approximately (1/n + 1/m) * Chi2(B - 1). On small
+        # samples that critical value is well above the usual 0.10 rule.
         df = max(1, b_actual - 1)
-        chi2_crit = stats.chi2.ppf(1.0 - alpha, df=df)
-        psi_crit_stat = (1.0 / n + 1.0 / m) * chi2_crit
-        # Bound against traditional 0.10 industry rule
-        psi_threshold = max(0.10, float(psi_crit_stat))
+        scale = 1.0 / n + 1.0 / m
+        psi_threshold = max(0.10, float(scale * stats.chi2.ppf(1.0 - alpha, df=df)))
+        psi_pvalue = float(stats.chi2.sf(psi_val / scale, df=df))
 
-        return psi_val, psi_threshold
+        return psi_val, psi_threshold, psi_pvalue
+
+    @staticmethod
+    def effect_grade(psi_val: float, ks_stat: float, w_norm: float) -> str:
+        """Size of a shift that has already been shown to be real."""
+        if psi_val > 0.25 or ks_stat > 0.20 or w_norm > 0.40:
+            return "SEVERE"
+        if psi_val > 0.10 or ks_stat > 0.10 or w_norm > 0.20:
+            return "MODERATE"
+        return "LOW"
 
     @classmethod
     def analyze_feature(cls, feature_name: str, x_p: np.ndarray, x_q: np.ndarray) -> UnivariateDriftResult:
@@ -99,27 +109,21 @@ class UnivariateDriftAnalyzer:
                 wasserstein_norm=0.0,
                 psi_score=0.0,
                 psi_critical=0.10,
+                p_value=1.0,
                 is_drifted=False,
                 severity="NONE",
             )
 
         ks_stat, ks_pval, ks_crit = cls.kolmogorov_smirnov(x_p_clean, x_q_clean)
         w_norm = cls.normalized_wasserstein(x_p_clean, x_q_clean)
-        psi_val, psi_crit = cls.population_stability_index(x_p_clean, x_q_clean)
+        psi_val, psi_crit, psi_pval = cls.population_stability_index(x_p_clean, x_q_clean)
 
-        # Severity decision rule
-        if psi_val > 0.25 or ks_stat > 0.20 or w_norm > 0.40:
-            sev = "SEVERE"
-            drifted = True
-        elif psi_val > 0.10 or ks_stat > 0.10 or w_norm > 0.20:
-            sev = "MODERATE"
-            drifted = True
-        elif ks_stat > ks_crit and ks_pval < 0.05:
-            sev = "LOW"
-            drifted = True
-        else:
-            sev = "NONE"
-            drifted = False
+        # A shift has to be statistically real before its size is graded.
+        # Grading effect size alone flags sampling noise on small samples.
+        # Two tests per feature, so the smaller p-value is Bonferroni-doubled.
+        p_value = min(1.0, 2.0 * min(ks_pval, psi_pval))
+        drifted = p_value < 0.05
+        sev = cls.effect_grade(psi_val, ks_stat, w_norm) if drifted else "NONE"
 
         return UnivariateDriftResult(
             feature_name=feature_name,
@@ -129,6 +133,7 @@ class UnivariateDriftAnalyzer:
             wasserstein_norm=w_norm,
             psi_score=psi_val,
             psi_critical=psi_crit,
+            p_value=p_value,
             is_drifted=drifted,
             severity=sev,
         )
@@ -148,25 +153,19 @@ class UnivariateDriftAnalyzer:
         for k, name in enumerate(feature_names):
             res = cls.analyze_feature(name, df_reference[:, k], df_target[:, k])
             results.append(res)
-            p_values.append(res.ks_pvalue)
+            p_values.append(res.p_value)
 
-        # Benjamini-Hochberg FDR procedure
+        # Benjamini-Hochberg: p_(i) <= (i / m) * q. Only features that pass
+        # keep a severity grade; the rest are NONE whatever their effect size.
         n_features = len(p_values)
-        sorted_indices = np.argsort(p_values)
-        sorted_p = np.array(p_values)[sorted_indices]
+        sorted_p = np.sort(p_values)
+        fdr_thresholds = (np.arange(1, n_features + 1) / n_features) * q_fdr
+        passed = np.flatnonzero(sorted_p <= fdr_thresholds)
+        cutoff = sorted_p[passed.max()] if passed.size else -1.0
 
-        # FDR threshold: p_(i) <= (i / m) * q
-        fdr_thresholds = ((np.arange(1, n_features + 1)) / n_features) * q_fdr
-        passed_fdr = sorted_p <= fdr_thresholds
-
-        # Apply FDR correction
-        if np.any(passed_fdr):
-            max_idx = int(np.max(np.where(passed_fdr)[0]))
-            significant_cutoff = sorted_p[max_idx]
-            for res in results:
-                if res.ks_pvalue > significant_cutoff and res.severity == "LOW":
-                    # Demote marginal drift that failed FDR
-                    res.is_drifted = False
-                    res.severity = "NONE"
+        for res in results:
+            significant = res.p_value <= cutoff
+            res.is_drifted = bool(significant)
+            res.severity = cls.effect_grade(res.psi_score, res.ks_statistic, res.wasserstein_norm) if significant else "NONE"
 
         return results

@@ -42,3 +42,30 @@ def test_normalized_wasserstein_scale_invariance():
 
     # Normalized Wasserstein should be invariant to linear scale
     np.testing.assert_allclose(w_norm_1, w_norm_2, rtol=1e-3)
+
+
+def test_small_sample_noise_is_not_graded_as_drift():
+    # At n = 150 per side, PSI and KS routinely exceed the fixed 0.10 rules by
+    # chance alone. A feature only gets a severity once its combined p-value
+    # survives the FDR step, so twenty unshifted features stay NONE.
+    rng = np.random.RandomState(0)
+    x_p = rng.normal(0.0, 1.0, (150, 20))
+    x_q = rng.normal(0.0, 1.0, (150, 20))
+    names = [f"f{k}" for k in range(20)]
+
+    results = UnivariateDriftAnalyzer.analyze_dataset(x_p, x_q, names, q_fdr=0.05)
+
+    assert max(r.psi_score for r in results) > 0.10   # the fixed rule would fire
+    assert all(r.severity == "NONE" for r in results)
+
+
+def test_missing_values_are_ignored_not_fatal():
+    rng = np.random.RandomState(1)
+    x_p = rng.normal(0.0, 1.0, 500)
+    x_q = rng.normal(2.0, 1.0, 500)
+    x_p[::7] = np.nan
+    x_q[::5] = np.nan
+
+    res = UnivariateDriftAnalyzer.analyze_feature("with_gaps", x_p, x_q)
+
+    assert res.severity == "SEVERE"
