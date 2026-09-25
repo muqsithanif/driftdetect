@@ -1,0 +1,302 @@
+{
+  "dataset": "uci-water",
+  "description": "reference: 20 Jan 1991 to 24 May 1991 (105 records); target: 26 May 1991 to 30 Oct 1991 (106 records)",
+  "univariate": [
+    {
+      "feature": "PH-D",
+      "ks": 0.5441,
+      "p_value": 1.45e-50,
+      "wasserstein_over_iqr": 0.9949,
+      "psi": 4.7175,
+      "psi_critical": 0.2387,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "PH-P",
+      "ks": 0.5818,
+      "p_value": 2.14e-43,
+      "wasserstein_over_iqr": 1.2319,
+      "psi": 4.152,
+      "psi_critical": 0.2667,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "DBO-D",
+      "ks": 0.5515,
+      "p_value": 2.07e-41,
+      "wasserstein_over_iqr": 0.7457,
+      "psi": 4.2494,
+      "psi_critical": 0.3318,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "DBO-P",
+      "ks": 0.4412,
+      "p_value": 1.96e-19,
+      "wasserstein_over_iqr": 0.5865,
+      "psi": 2.1428,
+      "psi_critical": 0.327,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "DBO-E",
+      "ks": 0.4243,
+      "p_value": 6.75e-18,
+      "wasserstein_over_iqr": 0.6253,
+      "psi": 1.9771,
+      "psi_critical": 0.3238,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "SED-D",
+      "ks": 0.5551,
+      "p_value": 3.92e-15,
+      "wasserstein_over_iqr": 1.014,
+      "psi": 1.7283,
+      "psi_critical": 0.2889,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "PH-E",
+      "ks": 0.4674,
+      "p_value": 6.7e-15,
+      "wasserstein_over_iqr": 0.7376,
+      "psi": 1.5192,
+      "psi_critical": 0.2387,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "Q-E",
+      "ks": 0.3318,
+      "p_value": 5.34e-13,
+      "wasserstein_over_iqr": 0.7241,
+      "psi": 1.6481,
+      "psi_critical": 0.3534,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "DQO-D",
+      "ks": 0.4523,
+      "p_value": 9.83e-10,
+      "wasserstein_over_iqr": 0.5824,
+      "psi": 1.1049,
+      "psi_critical": 0.3318,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "SED-S",
+      "ks": 0.2523,
+      "p_value": 6.6e-06,
+      "wasserstein_over_iqr": 0.4081,
+      "psi": 0.582,
+      "psi_critical": 0.1613,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "SS-D",
+      "ks": 0.3429,
+      "p_value": 1.44e-05,
+      "wasserstein_over_iqr": 0.5687,
+      "psi": 0.6824,
+      "psi_critical": 0.3223,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "ZN-E",
+      "ks": 0.3238,
+      "p_value": 5.72e-05,
+      "wasserstein_over_iqr": 0.5737,
+      "psi": 0.6795,
+      "psi_critical": 0.3223,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "SSV-S",
+      "ks": 0.3173,
+      "p_value": 9.95e-05,
+      "wasserstein_over_iqr": 0.4825,
+      "psi": 0.5048,
+      "psi_critical": 0.3254,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "DQO-E",
+      "ks": 0.2886,
+      "p_value": 0.000492,
+      "wasserstein_over_iqr": 0.485,
+      "psi": 0.3985,
+      "psi_critical": 0.3254,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "SSV-P",
+      "ks": 0.2381,
+      "p_value": 0.00329,
+      "wasserstein_over_iqr": 0.2822,
+      "psi": 0.5061,
+      "psi_critical": 0.3223,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "SSV-E",
+      "ks": 0.2511,
+      "p_value": 0.00401,
+      "wasserstein_over_iqr": 0.2504,
+      "psi": 0.4724,
+      "psi_critical": 0.3207,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "SED-E",
+      "ks": 0.2474,
+      "p_value": 0.00799,
+      "wasserstein_over_iqr": 0.4857,
+      "psi": 0.2836,
+      "psi_critical": 0.3185,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "DBO-S",
+      "ks": 0.219,
+      "p_value": 0.0137,
+      "wasserstein_over_iqr": 0.5226,
+      "psi": 0.4327,
+      "psi_critical": 0.3223,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "SED-P",
+      "ks": 0.2301,
+      "p_value": 0.0184,
+      "wasserstein_over_iqr": 0.4344,
+      "psi": 0.3426,
+      "psi_critical": 0.3185,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "SSV-D",
+      "ks": 0.1524,
+      "p_value": 0.0608,
+      "wasserstein_over_iqr": 0.262,
+      "psi": 0.3512,
+      "psi_critical": 0.3223,
+      "severity": "NONE"
+    },
+    {
+      "feature": "COND-D",
+      "ks": 0.1858,
+      "p_value": 0.0841,
+      "wasserstein_over_iqr": 0.2574,
+      "psi": 0.2609,
+      "psi_critical": 0.3207,
+      "severity": "NONE"
+    },
+    {
+      "feature": "COND-S",
+      "ks": 0.1677,
+      "p_value": 0.166,
+      "wasserstein_over_iqr": 0.2194,
+      "psi": 0.2386,
+      "psi_critical": 0.3207,
+      "severity": "NONE"
+    },
+    {
+      "feature": "PH-S",
+      "ks": 0.1111,
+      "p_value": 0.189,
+      "wasserstein_over_iqr": 0.4866,
+      "psi": 0.121,
+      "psi_critical": 0.1481,
+      "severity": "NONE"
+    },
+    {
+      "feature": "SS-S",
+      "ks": 0.1373,
+      "p_value": 0.504,
+      "wasserstein_over_iqr": 0.5016,
+      "psi": 0.1793,
+      "psi_critical": 0.3238,
+      "severity": "NONE"
+    },
+    {
+      "feature": "DQO-S",
+      "ks": 0.135,
+      "p_value": 0.536,
+      "wasserstein_over_iqr": 0.334,
+      "psi": 0.1443,
+      "psi_critical": 0.3334,
+      "severity": "NONE"
+    },
+    {
+      "feature": "COND-P",
+      "ks": 0.1314,
+      "p_value": 0.551,
+      "wasserstein_over_iqr": 0.2035,
+      "psi": 0.0982,
+      "psi_critical": 0.3207,
+      "severity": "NONE"
+    },
+    {
+      "feature": "SS-P",
+      "ks": 0.1116,
+      "p_value": 0.599,
+      "wasserstein_over_iqr": 0.2141,
+      "psi": 0.2021,
+      "psi_critical": 0.3207,
+      "severity": "NONE"
+    },
+    {
+      "feature": "COND-E",
+      "ks": 0.1192,
+      "p_value": 0.787,
+      "wasserstein_over_iqr": 0.1858,
+      "psi": 0.0994,
+      "psi_critical": 0.3207,
+      "severity": "NONE"
+    },
+    {
+      "feature": "SS-E",
+      "ks": 0.0762,
+      "p_value": 1.0,
+      "wasserstein_over_iqr": 0.2414,
+      "psi": 0.0917,
+      "psi_critical": 0.3223,
+      "severity": "NONE"
+    }
+  ],
+  "adversarial": {
+    "auc": 0.9571,
+    "auc_95ci": [
+      0.9339,
+      0.976
+    ],
+    "severity": "SEVERE",
+    "trivial_separators": []
+  },
+  "top_features": [
+    "PH-P",
+    "SED-D",
+    "PH-D",
+    "Q-E",
+    "DQO-D"
+  ],
+  "auc_after_removing_top_features": [
+    [
+      "Baseline (All Features)",
+      0.9659
+    ],
+    [
+      "Drop PH-P",
+      0.9585
+    ],
+    [
+      "Drop SED-D",
+      0.9498
+    ],
+    [
+      "Drop PH-D",
+      0.9408
+    ]
+  ],
+  "importance_weight_ess": 0.367
+}

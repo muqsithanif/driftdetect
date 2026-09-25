@@ -1,0 +1,133 @@
+{
+  "dataset": "injected",
+  "description": "reference: 3,000 rows; target: 1,500 rows, drift injected",
+  "univariate": [
+    {
+      "feature": "transaction_id",
+      "ks": 1.0,
+      "p_value": 0.0,
+      "wasserstein_over_iqr": 1.5005,
+      "psi": 14.8712,
+      "psi_critical": 0.1,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "debt_to_income_ratio",
+      "ks": 0.471,
+      "p_value": 1.05e-290,
+      "wasserstein_over_iqr": 1.0863,
+      "psi": 1.3776,
+      "psi_critical": 0.1,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "user_age",
+      "ks": 0.24,
+      "p_value": 2.47e-62,
+      "wasserstein_over_iqr": 0.4559,
+      "psi": 0.3157,
+      "psi_critical": 0.1,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "monthly_income",
+      "ks": 0.1867,
+      "p_value": 6.64e-37,
+      "wasserstein_over_iqr": 0.5285,
+      "psi": 0.1952,
+      "psi_critical": 0.1,
+      "severity": "SEVERE"
+    },
+    {
+      "feature": "interest_rate",
+      "ks": 0.038,
+      "p_value": 0.221,
+      "wasserstein_over_iqr": 0.0439,
+      "psi": 0.0118,
+      "psi_critical": 0.1,
+      "severity": "NONE"
+    },
+    {
+      "feature": "revolving_utilization",
+      "ks": 0.031,
+      "p_value": 0.381,
+      "wasserstein_over_iqr": 0.0177,
+      "psi": 0.0124,
+      "psi_critical": 0.1,
+      "severity": "NONE"
+    },
+    {
+      "feature": "credit_lines_count",
+      "ks": 0.0223,
+      "p_value": 0.522,
+      "wasserstein_over_iqr": 0.0233,
+      "psi": 0.0089,
+      "psi_critical": 0.1,
+      "severity": "NONE"
+    },
+    {
+      "feature": "delinquency_history",
+      "ks": 0.001,
+      "p_value": 1.0,
+      "wasserstein_over_iqr": 0.0031,
+      "psi": 0.0,
+      "psi_critical": 0.1,
+      "severity": "NONE"
+    },
+    {
+      "feature": "inquiry_count_6m",
+      "ks": 0.0133,
+      "p_value": 1.0,
+      "wasserstein_over_iqr": 0.0187,
+      "psi": 0.0023,
+      "psi_critical": 0.1,
+      "severity": "NONE"
+    },
+    {
+      "feature": "loan_amount",
+      "ks": 0.0213,
+      "p_value": 1.0,
+      "wasserstein_over_iqr": 0.0191,
+      "psi": 0.0058,
+      "psi_critical": 0.1,
+      "severity": "NONE"
+    }
+  ],
+  "adversarial": {
+    "auc": 0.8301,
+    "auc_95ci": [
+      0.8166,
+      0.8424
+    ],
+    "severity": "SEVERE",
+    "trivial_separators": [
+      "transaction_id"
+    ]
+  },
+  "top_features": [
+    "debt_to_income_ratio",
+    "user_age",
+    "monthly_income",
+    "revolving_utilization",
+    "interest_rate"
+  ],
+  "auc_after_removing_top_features": [
+    [
+      "Baseline (All Features)",
+      0.8322
+    ],
+    [
+      "Drop debt_to_income_ratio",
+      0.6614
+    ],
+    [
+      "Drop user_age",
+      0.5794
+    ],
+    [
+      "Drop monthly_income",
+      0.4996
+    ]
+  ],
+  "importance_weight_ess": 0.5881
+}
