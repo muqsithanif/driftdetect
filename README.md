@@ -1,187 +1,82 @@
 # driftdetect
 
-Production covariate shift quantification, adversarial validation, and adaptive train-test alignment engine for competitive machine learning and tabular production pipelines.
+Checks whether two tabular datasets come from the same distribution, which columns differ, and by how much. It is meant for train/test splits and for comparing a model's training data with what it sees in production.
 
-![Drift Diagnostic Dashboard](samples/drift_dashboard.png)
+It is tested two ways: on a synthetic table where the drift was injected into known columns, and on two periods of real data from a wastewater treatment plant.
 
-*Comprehensive drift diagnostics: Out-of-fold adversarial validation ROC curve, population stability index (PSI) per feature, empirical CDF divergence for primary culprit features, and out-of-fold probability density separation.*
+![Drift audit of two periods of plant data](samples/uci-water_dashboard.png)
 
----
-
-## The Distribution Shift Problem: Silent Model Failure
-
-In competitive data science (e.g. Kaggle private leaderboard shakeups) and production tabular systems, machine learning models silently degrade when the test distribution diverges from the training distribution:
-
-$$P_{\text{train}}(X) \neq P_{\text{test}}(X)$$
-
-Standard validation strategies fail under shift:
-1. **Uninformative p-values:** With large sample sizes ($N > 10^4$), standard statistical tests flag every feature as drifted even when the physical effect size is negligible.
-2. **Hidden Multivariate Shift:** Features can appear identical in univariate histograms while shifting drastically in their joint correlation structure.
-3. **Data Leakage Contamination:** Monotonic transaction IDs, sequence indices, or timestamps cause false alarms in discriminator models.
+*Real plant data, January–May 1991 against May–October 1991. Top left: a classifier separates the two periods almost perfectly. Top right: PSI per feature, grey where the shift is not statistically significant. Bottom: the most shifted feature, primary-settler pH, and the classifier's out-of-fold probabilities.*
 
 ---
 
-## Architectural & Mathematical Framework
+## What it does
 
-```
-Train Reference X_P ──┐
-                      ├─► [ Leakage Guard ] ──► Exclude Trivial Separators (AUC > 0.98)
-Test Target X_Q ──────┘            │
-                                   ▼
-┌──────────────────────────────────┴───────────────────────────────────┐
-│                                                                      │
-│  1. Univariate Statistical Testing                                   │
-│     ├── Two-sample Kolmogorov-Smirnov (Effect Size & Critical Value) │
-│     ├── Normalized Wasserstein-1 Distance (W1 / IQR_P)               │
-│     ├── Sample-Size Calibrated PSI (Chi-Square Null Distribution)    │
-│     └── Benjamini-Hochberg False Discovery Rate (FDR q = 0.05)       │
-│                                                                      │
-│  2. Multivariate Adversarial Validation                              │
-│     ├── 5-Fold Stratified Out-of-Fold Discriminator (LightGBM/RF)    │
-│     └── 95% Bootstrap Confidence Interval on ROC-AUC                 │
-│                                                                      │
-│  3. Feature Drift Attribution & Elimination                          │
-│     ├── Permutation Drift Importance (AUC drop on permutation)       │
-│     ├── Consensus Culprit Score C_k (Rank Aggregation)               │
-│     └── Recursive Adversarial Feature Elimination (RAFE)             │
-│                                                                      │
-│  4. Adaptive Train-Test Alignment                                    │
-│     ├── Importance-Weighted CV (IWCV) via Shimodaira Flattening      │
-│     └── Adversarial Stratified K-Fold Splitters                      │
-└──────────────────────────────────────────────────────────────────────┘
-```
+**Per-column tests.** For each column, the tool runs a two-sample Kolmogorov–Smirnov test and computes the Population Stability Index (PSI) and the Wasserstein-1 distance divided by the reference IQR. A column only gets a severity (LOW, MODERATE or SEVERE) if its shift is statistically significant. That means the smaller of the KS and PSI p-values, doubled for the two tests, has to pass a Benjamini–Hochberg false-discovery-rate step across all columns at q = 0.05.
+
+The PSI p-value comes from its approximate null distribution, PSI ≈ (1/n + 1/m)·χ²(B−1). This is why significance comes first. At 150 rows per side and 10 bins, the 95th percentile of PSI with no drift at all is about 0.23, so the usual "PSI above 0.10 means drift" rule flags columns that have not moved. A test covers exactly this case.
+
+**Adversarial validation.** A LightGBM classifier is trained to tell the two datasets apart, and its out-of-fold ROC AUC is reported with a bootstrap 95% interval. AUC near 0.5 means the classifier cannot tell the sets apart. Near 1.0 it can. Before training, any column that separates the sets on its own (univariate AUC ≥ 0.98) is set aside as probable leakage, for example a row ID or a timestamp.
+
+**Attribution.** Columns are ranked by two scores: how much the classifier's AUC drops when the column is permuted, measured on held-out rows, and the column's own univariate AUC. Removing the top-ranked columns one at a time and re-running the classifier shows whether a few columns explain the drift or it is spread across many.
+
+**Importance weights.** The classifier's probabilities give density-ratio weights for the reference rows, so that training or validation can be reweighted towards the target distribution. The weights are flattened with a power of 0.5, clipped at the 99th percentile, and reported with their effective sample size.
 
 ---
 
-## Mathematical Formulations
+## Results
 
-### 1. Sample-Size Aware Population Stability Index (PSI)
-Standard industrial rules use fixed thresholds ($\text{PSI} < 0.10$). On small sample sizes ($N < 500$), random sampling noise triggers false alarms. Under the null hypothesis $H_0: P = Q$, the empirical PSI follows a scaled Chi-square distribution:
+### Injected drift, where the answer is known
 
-$$\text{PSI} \sim \left(\frac{1}{n} + \frac{1}{m}\right) \chi^2_{B-1}$$
+The reference has 3,000 rows and the target 1,500. Drift was injected into three columns: `user_age`, `monthly_income` and `debt_to_income_ratio`. Six columns come from the same distribution on both sides, and `transaction_id` is a row counter that separates the two sets trivially.
 
-`core/stats.py` computes sample-size calibrated thresholds:
+| | Found |
+|---|---|
+| Shifted columns flagged | the three injected columns, all SEVERE |
+| Unshifted columns flagged | none of the six |
+| Set aside as leakage | `transaction_id` |
+| Adversarial AUC | 0.830 (95% CI 0.817–0.842) |
+| AUC after removing the three columns | 0.500 |
 
-$$\text{PSI}_{\text{crit}}(\alpha) = \max\left(0.10, \; \left(\frac{1}{n} + \frac{1}{m}\right) \chi^2_{B-1, \, 1-\alpha}\right)$$
+### Real data: two periods of a wastewater treatment plant
 
-### 2. Normalized Wasserstein-1 Distance
-Univariate Earth Mover's Distance measures total integral mass discrepancy between empirical CDFs:
+The data comes from the [UCI Water Treatment Plant dataset](https://archive.ics.uci.edu/dataset/106/water+treatment+plant), with 29 measured columns (the derived removal-efficiency columns are left out). The two periods are January–May 1991 (105 records) and May–October 1991 (106 records). These are the same windows [wateraudit](https://github.com/muqsithanif/wateraudit) uses to calibrate and then test its prediction intervals. Those intervals under-covered on the test period, and this audit shows why.
 
-$$W_1(P, Q) = \int_{-\infty}^\infty |F_P(x) - F_Q(x)| \, dx$$
+- 19 of the 29 columns shift significantly. The largest shifts are pH in the primary and secondary settlers, BOD at every stage, secondary-settler sediments, and inlet flow.
+- The adversarial AUC is 0.957 (95% CI 0.934–0.976), so the two periods are almost perfectly separable.
+- Removing the three top-ranked columns only lowers the AUC to 0.941. Unlike the injected case, the shift is spread across the plant rather than concentrated in a few columns.
+- The importance weights keep an effective sample size of 37% of the reference rows. Reweighting would lean on about a third of the calibration data.
 
-To enable comparisons across features with wildly different units (e.g. `age` vs `monthly_income`), $W_1$ is normalized by the interquartile range of the reference distribution:
-
-$$\tilde{W}_1 = \frac{W_1(P, Q)}{\text{IQR}(X_P) + \epsilon}$$
-
-### 3. Recursive Adversarial Feature Elimination (RAFE)
-When adversarial validation reveals severe separation ($\text{AUC} > 0.80$), RAFE iteratively eliminates the top culprit feature and measures the decay of discriminability:
-
-![RAFE Decay](samples/rafe_decay.png)
-
-```
-Iteration 0 (Baseline All Features) : Adversarial AUC = 0.8322 [Severe Shift]
-Iteration 1 (Drop debt_to_income)   : Adversarial AUC = 0.6614
-Iteration 2 (Drop user_age)         : Adversarial AUC = 0.5794
-Iteration 3 (Drop monthly_income)   : Adversarial AUC = 0.4996 [Perfect Alignment]
-```
-
-### 4. Density Ratio & Importance-Weighted Cross-Validation (IWCV)
-Using the out-of-fold probability $s(x) = P(\text{test} \mid x)$, Bayes' rule yields the Radon-Nikodym density derivative:
-
-$$w(x) = \frac{q(x)}{p(x)} = \frac{n}{m} \frac{s(x)}{1 - s(x)}$$
-
-To prevent high-variance weights from destabilizing gradient boosting estimators, weights are stabilized via Shimodaira power-flattening ($\lambda = 0.5$) and 99th-percentile clipping:
-
-$$w_i \leftarrow \min\left(w_i^\lambda, \; Q_{0.99}(w)\right) \cdot \frac{n}{\sum w_i}$$
+The numbers are in `results/injected_summary.json` and `results/uci-water_summary.json`.
 
 ---
 
-## Audit Output Example
+## Limits
 
-```
-===========================================================================
-Feature                  | KS Stat  | p-val    | W1 Norm  | PSI     | Severity
-===========================================================================
-user_age                 | 0.240    | 5.61e-51 | 0.456    | 0.316   | SEVERE
-monthly_income           | 0.187    | 6.92e-31 | 0.529    | 0.195   | SEVERE
-debt_to_income_ratio     | 0.471    | 2.84e-201| 1.086    | 1.378   | SEVERE
-credit_lines_count       | 0.022    | 6.98e-01 | 0.023    | 0.009   | NONE
-delinquency_history      | 0.001    | 1.00e+00 | 0.003    | 0.000   | NONE
-inquiry_count_6m         | 0.013    | 9.94e-01 | 0.019    | 0.002   | NONE
-revolving_utilization    | 0.031    | 2.90e-01 | 0.018    | 0.012   | NONE
-loan_amount              | 0.021    | 7.50e-01 | 0.019    | 0.006   | NONE
-interest_rate            | 0.038    | 1.10e-01 | 0.044    | 0.012   | NONE
-transaction_id           | 1.000    | 0.00e+00 | 1.501    | 14.871  | LEAKAGE
-===========================================================================
-Leakage Guard Excluded   : ['transaction_id'] (Monotonic Trivial Separator)
-Out-of-Fold ROC-AUC      : 0.8301 [95% CI: 0.8166 - 0.8424] (Gini = 0.6602)
-Effective Sample Size    : 58.8% of training set
-```
+- The per-column tests ignore interactions between columns; the adversarial classifier covers those, but only as a single score.
+- KS is conservative on discrete columns, and the PSI null is an approximation that needs enough rows per bin.
+- Permutation importance splits credit between correlated columns, so a column can rank low while its correlated partner ranks high.
+- With about 100 rows per period, the plant results carry wide uncertainty on everything except the headline that the periods differ.
 
----
-
-## Project Structure
-
-```
-driftdetect/
-├── core/
-│   ├── stats.py           # Kolmogorov-Smirnov, Normalized W1, Calibrated PSI, and BH-FDR
-│   ├── adversarial.py     # Leakage pre-pass guard, LightGBM/RF out-of-fold validation, and bootstrap CI
-│   ├── attribution.py     # Permutation importance, consensus culprit score C_k, and RAFE trajectory
-│   ├── alignment.py       # Shimodaira importance weighting, AdversarialHoldout, AdversarialStratifiedKFold
-│   └── visualizer.py      # Multi-panel dashboard (ROC, PSI bars, ECDF shift, density histograms)
-├── samples/
-│   ├── drift_dashboard.png # Comprehensive 4-panel diagnostic plot
-│   └── rafe_decay.png      # Feature elimination decay trajectory
-├── scripts/
-│   └── run_audit.py        # End-to-end audit demonstration script
-├── tests/
-│   ├── test_stats.py       # KS, W1, and PSI invariants
-│   ├── test_adversarial.py # Adversarial validation AUC on null and drifted distributions
-│   ├── test_attribution.py # Culprit identification ranking
-│   └── test_alignment.py   # Importance weights and cross-validation split fractions
-├── requirements.txt
-└── README.md
-```
-
----
-
-## Quick Start
-
-### 1. Installation
+## Run it
 
 ```bash
-git clone https://github.com/muqsithanif/driftdetect.git
-cd driftdetect
-
-python -m venv .venv
-# On Windows:
-.venv\Scripts\activate
-# On Linux/macOS:
-source .venv/bin/activate
-
 pip install -r requirements.txt
+python scripts/run_audit.py --dataset injected
+python scripts/run_audit.py --dataset uci-water
+pytest -q
 ```
 
-### 2. Run Audit
+## Tests
 
-```bash
-python scripts/run_audit.py
-```
-Performs leakage detection, univariate statistical testing, 5-fold adversarial validation, culprit attribution, and exports diagnostic dashboards to `samples/`.
+There are ten tests. These are the ones worth naming:
 
-### 3. Run Automated Tests
+- **Noise is not graded as drift.** Twenty unshifted columns at 150 rows per side all come out NONE, even though several exceed the fixed 0.10 PSI rule.
+- **Missing values are ignored, not fatal.** A shifted column with gaps is still detected.
+- **A null comparison gives an adversarial AUC near 0.5, and a row ID is caught as leakage.**
+- **Attribution ranks the one shifted column first.**
+- **Scale does not change the normalized Wasserstein distance.**
 
-```bash
-pytest tests -v
-```
+## Data license
 
----
-
-## Automated Invariant Tests
-
-Eight unit tests enforce statistical, adversarial, and alignment guarantees:
-- **`test_stats.py`:** Enforces null invariance ($D < D_{\text{crit}}$ and $\text{PSI} < 0.10$ on identical draws), validates severe shift detection, and proves scale invariance of normalized Wasserstein distance.
-- **`test_adversarial.py`:** Asserts $\text{AUC} \approx 0.50$ on null distributions and verifies automated identification of monotonic index leakage.
-- **`test_attribution.py`:** Proves that deliberately shifted features are ranked as primary culprits ($C_k \ge 0.70$).
-- **`test_alignment.py`:** Confirms importance weights sum to $N_{\text{train}}$, verifies positive bounded Effective Sample Size, and tests holdout split fraction integrity.
+The UCI Water Treatment Plant dataset in `data/uci_water_treatment/` was created by Manel Poch and is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), [doi:10.24432/C5FS4C](https://doi.org/10.24432/C5FS4C).
