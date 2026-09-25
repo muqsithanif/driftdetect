@@ -8,47 +8,29 @@ Production covariate shift quantification, adversarial validation, and adaptive 
 
 ---
 
-## The Distribution Shift Problem: Silent Model Failure
+## Covariate Shift Detection & Validation Strategy
 
-In competitive data science (e.g. Kaggle private leaderboard shakeups) and production tabular systems, machine learning models silently degrade when the test distribution diverges from the training distribution:
+In competitive machine learning and production scoring systems, model performance deteriorates when test feature distributions shift relative to training data:
 
 $$P_{\text{train}}(X) \neq P_{\text{test}}(X)$$
 
-Standard validation strategies fail under shift:
-1. **Uninformative p-values:** With large sample sizes ($N > 10^4$), standard statistical tests flag every feature as drifted even when the physical effect size is negligible.
-2. **Hidden Multivariate Shift:** Features can appear identical in univariate histograms while shifting drastically in their joint correlation structure.
-3. **Data Leakage Contamination:** Monotonic transaction IDs, sequence indices, or timestamps cause false alarms in discriminator models.
+Addressing distribution shift requires separating benign sampling noise from genuine structural drift:
+1. **Sample Size vs Effect Size:** On large sample sizes ($N > 10^4$), standard null-hypothesis p-values flag almost all features. `driftdetect` couples p-values with standardized effect size metrics (normalized $W_1$, calibrated PSI).
+2. **Multivariate Dependencies:** Features may show identical univariate marginals while shifting significantly in their joint correlation structure.
+3. **Data Leakage Screening:** Monotonic IDs or timestamps that artificially separate train from test are identified and excluded before model validation.
 
----
+```mermaid
+flowchart TD
+    subgraph Ingestion ["Data Ingestion & Filtering"]
+        Train["Train Reference (P)"] --> Guard["Leakage Guard (AUC >= 0.98 Exclusion)"]
+        Test["Test Target (Q)"] --> Guard
+    end
 
-## Architectural & Mathematical Framework
+    Guard --> Univar["1. Univariate Statistics\nKS-Test, Normalized W1, Calibrated PSI, BH-FDR"]
+    Guard --> Adv["2. Adversarial Validation\n5-Fold OOF Discriminator, ROC-AUC + 95% CI"]
 
-```
-Train Reference X_P ──┐
-                      ├─► [ Leakage Guard ] ──► Exclude Trivial Separators (AUC > 0.98)
-Test Target X_Q ──────┘            │
-                                   ▼
-┌──────────────────────────────────┴───────────────────────────────────┐
-│                                                                      │
-│  1. Univariate Statistical Testing                                   │
-│     ├── Two-sample Kolmogorov-Smirnov (Effect Size & Critical Value) │
-│     ├── Normalized Wasserstein-1 Distance (W1 / IQR_P)               │
-│     ├── Sample-Size Calibrated PSI (Chi-Square Null Distribution)    │
-│     └── Benjamini-Hochberg False Discovery Rate (FDR q = 0.05)       │
-│                                                                      │
-│  2. Multivariate Adversarial Validation                              │
-│     ├── 5-Fold Stratified Out-of-Fold Discriminator (LightGBM/RF)    │
-│     └── 95% Bootstrap Confidence Interval on ROC-AUC                 │
-│                                                                      │
-│  3. Feature Drift Attribution & Elimination                          │
-│     ├── Permutation Drift Importance (AUC drop on permutation)       │
-│     ├── Consensus Culprit Score C_k (Rank Aggregation)               │
-│     └── Recursive Adversarial Feature Elimination (RAFE)             │
-│                                                                      │
-│  4. Adaptive Train-Test Alignment                                    │
-│     ├── Importance-Weighted CV (IWCV) via Shimodaira Flattening      │
-│     └── Adversarial Stratified K-Fold Splitters                      │
-└──────────────────────────────────────────────────────────────────────┘
+    Adv -->|If AUC > 0.55| Attrib["3. Drift Attribution & Elimination\nPermutation Importance, Consensus C_k, RAFE"]
+    Adv --> Align["4. Adaptive Alignment\nImportance-Weighted CV (IWCV), Adversarial Splitters"]
 ```
 
 ---
@@ -98,25 +80,22 @@ $$w_i \leftarrow \min\left(w_i^\lambda, \; Q_{0.99}(w)\right) \cdot \frac{n}{\su
 
 ## Audit Output Example
 
-```
-===========================================================================
-Feature                  | KS Stat  | p-val    | W1 Norm  | PSI     | Severity
-===========================================================================
-user_age                 | 0.240    | 5.61e-51 | 0.456    | 0.316   | SEVERE
-monthly_income           | 0.187    | 6.92e-31 | 0.529    | 0.195   | SEVERE
-debt_to_income_ratio     | 0.471    | 2.84e-201| 1.086    | 1.378   | SEVERE
-credit_lines_count       | 0.022    | 6.98e-01 | 0.023    | 0.009   | NONE
-delinquency_history      | 0.001    | 1.00e+00 | 0.003    | 0.000   | NONE
-inquiry_count_6m         | 0.013    | 9.94e-01 | 0.019    | 0.002   | NONE
-revolving_utilization    | 0.031    | 2.90e-01 | 0.018    | 0.012   | NONE
-loan_amount              | 0.021    | 7.50e-01 | 0.019    | 0.006   | NONE
-interest_rate            | 0.038    | 1.10e-01 | 0.044    | 0.012   | NONE
-transaction_id           | 1.000    | 0.00e+00 | 1.501    | 14.871  | LEAKAGE
-===========================================================================
-Leakage Guard Excluded   : ['transaction_id'] (Monotonic Trivial Separator)
-Out-of-Fold ROC-AUC      : 0.8301 [95% CI: 0.8166 - 0.8424] (Gini = 0.6602)
-Effective Sample Size    : 58.8% of training set
-```
+| Feature | KS Stat | p-val | W1 Norm | PSI | Severity Assessment |
+|---|---|---|---|---|---|
+| `debt_to_income_ratio` | 0.471 | 2.84e-201 | 1.086 | 1.378 | **SEVERE (Primary Culprit)** |
+| `user_age` | 0.240 | 5.61e-51 | 0.456 | 0.316 | **SEVERE (Shifted Mean)** |
+| `monthly_income` | 0.187 | 6.92e-31 | 0.529 | 0.195 | **MODERATE / SEVERE** |
+| `interest_rate` | 0.038 | 0.110 | 0.044 | 0.012 | NONE (Stable) |
+| `revolving_utilization` | 0.031 | 0.290 | 0.018 | 0.012 | NONE (Stable) |
+| `credit_lines_count` | 0.022 | 0.698 | 0.023 | 0.009 | NONE (Stable) |
+| `loan_amount` | 0.021 | 0.750 | 0.019 | 0.006 | NONE (Stable) |
+| `inquiry_count_6m` | 0.013 | 0.994 | 0.019 | 0.002 | NONE (Stable) |
+| `delinquency_history` | 0.001 | 1.000 | 0.003 | 0.000 | NONE (Stable) |
+| `transaction_id` | 1.000 | 0.000 | 1.501 | 14.87 | **LEAKAGE (Excluded)** |
+
+- **Leakage Guard Action:** `transaction_id` identified as monotonic separator ($\text{AUC} = 1.0$) and excluded prior to adversarial validation.
+- **Out-of-Fold ROC-AUC:** 0.8301 [95% CI: 0.8166 - 0.8424] (Gini = 0.6602).
+- **Effective Sample Size:** 58.8% of training set under stabilized importance weighting ($\lambda = 0.5$).
 
 ---
 

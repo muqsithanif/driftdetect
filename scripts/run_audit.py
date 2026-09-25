@@ -68,9 +68,7 @@ def generate_synthetic_kaggle_dataset(seed: int = 42):
 
 
 def main():
-    print("==================================================================")
-    print("    driftdetect: Covariate Shift & Adversarial Validation")
-    print("==================================================================")
+    print("driftdetect: Running covariate shift and adversarial audit...")
 
     # 1. Dataset Generation
     print("\n[1/5] Synthesizing Production / Kaggle Tabular Dataset...")
@@ -165,10 +163,7 @@ def main():
     rafe_path = samples_dir / "rafe_decay.png"
     DriftVisualizer.plot_rafe_trajectory(rafe_trajectory, str(rafe_path))
     print(f"      Saved RAFE Decay Trajectory -> {rafe_path}")
-
-    print("\n==================================================================")
-    print("Drift Audit Completed Successfully!")
-    print("==================================================================")
+    print(f"Drift audit complete. Artifacts saved to: {samples_dir}")
 
 
 if __name__ == "__main__":
